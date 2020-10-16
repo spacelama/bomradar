@@ -1,0 +1,116 @@
+#!/usr/bin/python3
+
+# rain radar w/o 2GB of GUI browser - TWB (Trent W. Buck @ Linux Users Victoria ~ September 2020)
+
+# PROBLEM:
+#  * http://bom.gov.au is 90s style and very hard to use.
+#    It also requires js, and is not SSL so COMPLETELY UNSAFE.
+#  * http://m.bom.gov.au provided a GOOD option with two simple pages:
+#      1. a full-screen rain radar for the last 15 minutes.
+#         This tells me the heavy rainstorm is just starting, or just finishing.
+#         This in turn tells me whether to leave now or wait 15 minutes.
+#      2. For my station only (Melbourne CBD),
+#          * min/max temp, rain chance forecasts for the rest of today
+#          * severe weather warnings, in big letters, with a solid yellow background.
+#  * m.bom.gov.au was shut down and replaced by an "app" that requires ios or dalvik.
+#  * the backend data is now commercialized, so open source alternative interfaces to this data CANNOT EXIST ANYMORE.
+#    i.e. bom.gov.au is trying to buck the govhack trend and make Australian weather MORE like American weather -- expensive and exclusive.
+#
+# So let's try to solve the most immediate problem: merge the rain GIF overlay onto the static map PNGs, as the javascript does.
+# Then render that into a static png or webm, and view it.
+
+# usage: radar [tmpdir1] [tmpdir2] [movie player and arguments]
+
+import pwd
+import os
+import tempfile
+import pathlib
+import datetime
+import subprocess
+import shutil
+import sys
+
+underlays = ('background', 'locations', 'range', 'topography')
+
+def radar(prefix,minute_offset,tempdir_path):
+        now = datetime.datetime.utcnow()  # NOTE: TZ=UTC
+        # Truncate to start of hour to kludge over with propagation delays on the bom.gov.au servers
+        # This means the data will be up to 1h delayed, so FIXME.
+        # now = now.replace(minute=0)
+        subprocess.call([
+            'puf', '-nc', '-P', tempdir_path,
+            # Try to get a rain image for every minute in the last hour.
+            # 1 in every 5 or 6 will work.  For now, just ignore that some fail.
+            *[then.strftime('http://www.bom.gov.au/radar/'+prefix+'.T.%Y%m%d%H%M.png')
+              for i in range(60)
+              for then in [(now - datetime.timedelta(minutes=i))]
+              if (then.minute+minute_offset) % 5 == 0],  # was 6, should now be 5
+            # The underlay images (NOTE: hardcode station to MEL (IDR021) for now).
+            *[f'http://www.bom.gov.au/products/radar_transparencies/{prefix}.{u}.png'
+              for u in underlays]])
+
+        subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
+        subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.1.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
+        subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.2.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
+        subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.3.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
+        subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.4.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
+
+        regenerate = False
+
+        # Merge the underlays and overlays into combined images.
+        # We have to do this a bit at a time, because reasons.
+        # For now just to the map overlay and skip land/sea &c
+        for overlay_path in tempdir_path.glob(prefix+'*.T.????????????.png'):
+            if not pathlib.Path(overlay_path.with_suffix(f'.4.png')).exists():
+                subprocess.check_call(['gm', 'composite', overlay_path,                        tempdir_path / f'{prefix}.locations.png',   overlay_path.with_suffix(f'.1.png')])
+                subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.1.png'), tempdir_path / f'{prefix}.range.png',       overlay_path.with_suffix(f'.2.png')])
+                subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.2.png'), tempdir_path / f'{prefix}.topography.png',  overlay_path.with_suffix(f'.3.png')])
+                subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.3.png'), tempdir_path / f'{prefix}.background.png',  overlay_path.with_suffix(f'.4.png')])
+                regenerate = True
+
+        # Convert to an animated gif.
+        # FIXME: currently bugged -- it's not wiping the transparent cells between frames.
+        #        When I add in the all-opaque underlay that should fix it.
+
+        if regenerate:
+            subprocess.check_call(['gm', 'convert',
+                                   '-delay', '30',  # 1/3s per frame
+                                   '-loop', '0',    # loop forever
+                                   *sorted(tempdir_path.glob(prefix+'*.T.????????????.4.png')),
+                                   tempdir_path / f'{prefix}.final.gif'])
+
+provided_paths = False
+if len(sys.argv) > 2:
+    tempdir1_path = pathlib.Path(sys.argv.pop(1))
+    tempdir2_path = pathlib.Path(sys.argv.pop(1))
+
+    pathlib.Path(tempdir1_path).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(tempdir2_path).mkdir(parents=True, exist_ok=True)
+    
+    provided_paths = True
+else:
+    tempdir1_path = pathlib.Path(tempfile.mkdtemp(prefix="radar1."))
+    tempdir2_path = pathlib.Path(tempfile.mkdtemp(prefix="radar2."))
+
+print(f"path1={tempdir1_path},path2={tempdir2_path}")
+if 0 == os.fork():
+    radar('IDR021', 4, tempdir1_path)
+    os._exit(0)
+else:
+    radar('IDR023', 1, tempdir2_path)
+    os.wait()
+
+subprocess.check_call(['ffmpeg', '-i', tempdir1_path / 'IDR021.final.gif', '-i', tempdir2_path / 'IDR023.final.gif', '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
+os.rename(tempdir2_path / '.tmp.output.mp4', tempdir2_path / 'output.mp4')
+
+if len(sys.argv) != 1:
+    args=sys.argv[1:]
+else:
+    args=['mpv', '-loop']
+args+=[tempdir2_path / 'output.mp4']
+print("Argument List:", str(args))
+subprocess.check_call(args)
+
+if not provided_paths:
+    shutil.rmtree(tempdir1_path)
+    shutil.rmtree(tempdir2_path)
