@@ -37,7 +37,7 @@ it does not redownload images that are already there, vastly saving
 your download bills if you were to run this every minute)
 
 
-Incorporate it into an always on display on your raspberry pi:
+Incorporate it into an always on display on your raspberry pi (jerky in this screengrab because my Pi doesn't have much CPU - trust me it's a lot smoother):
 ![Screengrab of always-on_display](screengrab.fullscreen.gif)
 
 

@@ -74,7 +74,7 @@ def radar(prefix,minute_offset,tempdir_path):
 
         if regenerate:
             subprocess.check_call(['gm', 'convert',
-                                   '-delay', '30',  # 1/3s per frame
+                                   '-delay', '15',  # 1/6s per frame
                                    '-loop', '0',    # loop forever
                                    *sorted(tempdir_path.glob(prefix+'*.T.????????????.4.png')),
                                    tempdir_path / f'{prefix}.final.gif'])
