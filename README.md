@@ -16,6 +16,8 @@ debian: `sudo apt install puf`
 
 By default, depends on mpv, but you can substitute another movie player via commandline.
 
+debian: `sudo apt install mpv`
+
 If you're going to run continuously in the second mode, feeding into
 an already running player, you may want to investigate my slightly modified
 [mpvctl](https://gist.github.com/spacelama/6f9fb28bdc8112e4b3c48986b1edb4bc)
@@ -27,6 +29,13 @@ an already running player, you may want to investigate my slightly modified
 radar
 
 ### To feed into an existing player, start up a permanent player:
+
+radar [$tmpdir1 $tmpdir2 [$movie player $args...]]
+
+(if supplied explicitly, the tmpdirs are not deleted between runs, and
+it does not redownload images that are already there, vastly saving
+your download bills if you were to run this every minute)
+
 
 Incorporate it into an always on display on your raspberry pi:
 ![Screengrab of always-on_display](screengrab.fullscreen.png)
