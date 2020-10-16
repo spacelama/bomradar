@@ -1,5 +1,5 @@
 # bomradar
-Generates realtime timelapse of recent radar images for Melbourne (or any other Australian BoM radar station or composite)
+Generates realtime timelapse of recent radar images (1 hour) for Melbourne (or any other Australian BoM radar station or composite)
 
 ![Screengrab of the generated movie](screengrab.window.png)
 
@@ -38,7 +38,7 @@ your download bills if you were to run this every minute)
 
 
 Incorporate it into an always on display on your raspberry pi:
-![Screengrab of always-on_display](screengrab.fullscreen.png)
+![Screengrab of always-on_display](screengrab.fullscreen.mp4)
 
 
 ```bash
