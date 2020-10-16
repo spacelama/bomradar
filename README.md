@@ -38,7 +38,7 @@ your download bills if you were to run this every minute)
 
 
 Incorporate it into an always on display on your raspberry pi:
-![Screengrab of always-on_display](screengrab.fullscreen.mp4)
+![Screengrab of always-on_display](screengrab.fullscreen.gif)
 
 
 ```bash
