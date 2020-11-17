@@ -26,23 +26,27 @@ an already running player, you may want to investigate my slightly modified
 
 ### Simple, onetime usage: 
 
-radar
+```bash
+> radar
+```
 
 ### To feed into an existing player, start up a permanent player:
 
-radar [$tmpdir1 $tmpdir2 [$movie player $args...]]
+```bash
+> radar [$tmpdir1 $tmpdir2 [$movie player $args...]]
+```
 
 (if supplied explicitly, the tmpdirs are not deleted between runs, and
 it does not redownload images that are already there, vastly saving
 your download bills if you were to run this every minute)
 
 
-Incorporate it into an always on display on your raspberry pi (jerky in this screengrab because my Pi doesn't have much CPU - trust me it's a lot smoother):
+Incorporate it into an always on display on your raspberry pi (jerky in this screengrab because my Pi doesn't have much excess CPU to run the framegrabbing - trust me, display itself is perfectly smooth):
 ![Screengrab of always-on_display](screengrab.fullscreen.gif)
 
 
 ```bash
-38204,9> ssh pi grep mpv bin/pidisplay
+> ssh pi grep mpv bin/pidisplay
 killall mpv
 mpv --geometry 679x340+0+-20 --fullscreen=no --idle --input-ipc-server=$HOME/.mpv-socket --keep-open=yes --loop=inf --quiet &
 mpvctl replace /tmp/radar.2/output.mp4  # just get something to display before other GUI elements that partially cover our movie player
@@ -53,6 +57,6 @@ data usage), or 5 minutes (to match the current (late 2020) generation
 period, but you might alias with when its pushed to the website):
 
 ```bash
-38203,8> ssh pi crontab -l | grep radar
+> ssh pi crontab -l | grep radar
 * * * * * radar /tmp/radar.1 /tmp/radar.2 mpvctl replace >> /var/log/pidisplay.log 2>&1
 ```
