@@ -38,15 +38,15 @@ def radar(prefix,minute_offset,tempdir_path):
         # This means the data will be up to 1h delayed, so FIXME.
         # now = now.replace(minute=0)
         subprocess.call([
-            'puf', '-nc', '-P', tempdir_path,
+                'puf', '-v', '-nc', '-U', 'Yes, keep trying to block those user agents BoM. It''s not like you''re the public service', '-P', tempdir_path,
             # Try to get a rain image for every minute in the last hour.
             # 1 in every 5 or 6 will work.  For now, just ignore that some fail.
-            *[then.strftime('http://www.bom.gov.au/radar/'+prefix+'.T.%Y%m%d%H%M.png')
+            *[then.strftime('http://reg.bom.gov.au/radar/'+prefix+'.T.%Y%m%d%H%M.png')
               for i in range(60)
               for then in [(now - datetime.timedelta(minutes=i))]
               if (then.minute+minute_offset) % 5 == 0],  # was 6, should now be 5
             # The underlay images (NOTE: hardcode station to MEL (IDR021) for now).
-            *[f'http://www.bom.gov.au/products/radar_transparencies/{prefix}.{u}.png'
+            *[f'http://reg.bom.gov.au/products/radar_transparencies/{prefix}.{u}.png'
               for u in underlays]])
 
         subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
