@@ -1,5 +1,5 @@
 # bomradar
-Generates realtime timelapse of recent radar images (1 hour) for Melbourne (or any other Australian BoM radar station or composite)
+Originally authored by Trent W. Buck @ Linux Users Victoria, generates realtime timelapse of recent radar images (1 hour) for Melbourne (or any other Australian BoM radar station or composite)
 
 ![Screengrab of the generated movie](screengrab.window.png)
 
