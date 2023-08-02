@@ -29,6 +29,7 @@ import datetime
 import subprocess
 import shutil
 import sys
+import re
 
 underlays = ('background', 'locations', 'range', 'topography')
 
@@ -36,24 +37,47 @@ primaries = ('IDR021', 'IDR023')
 secondaries = ('IDR011', 'IDR013')
 current = primaries
 
-def radar(prefix,minute_offset,tempdir_path):
+def radar(prefix,minute_offset_file,tempdir_path):
         now = datetime.datetime.utcnow()  # NOTE: TZ=UTC
-        # Truncate to start of hour to kludge over with propagation delays on the bom.gov.au servers
-        # This means the data will be up to 1h delayed, so FIXME.
-        # now = now.replace(minute=0)
-        subprocess.call([
-                # if reg becomes blocked, could fallback to `lynx -source`, but then we have to manage the forks ourselves
-                'puf', '-v', '-nc', '-U', 'Yes, keep trying to block those user agents BoM. It''s not like you''re the public service', '-P', tempdir_path,
-            # Try to get a rain image for every minute in the last hour.
-            # 1 in every 5 or 6 will work.  For now, just ignore that some fail.
-            *[then.strftime('http://reg.bom.gov.au/radar/'+prefix+'.T.%Y%m%d%H%M.png')
-              for i in range(60)
-              for then in [(now - datetime.timedelta(minutes=i))]
-              if (then.minute+minute_offset) % 5 == 0],  # was 6, should now be 5
-            # The underlay images (NOTE: hardcode station to MEL (IDR021) for now).
-            *[f'http://reg.bom.gov.au/products/radar_transparencies/{prefix}.{u}.png'
-              for u in underlays]])
 
+        try:
+                with open(minute_offset_file, 'r') as offsetfile:
+                        minute_offset = int(offsetfile.read())
+        except:
+                minute_offset = 0
+
+        new_offset=0
+        while new_offset < 5:
+                # Truncate to start of hour to kludge over with propagation delays on the bom.gov.au servers
+                # This means the data will be up to 1h delayed, so FIXME.
+                # now = now.replace(minute=0)
+                proc = subprocess.run(args = [
+                        # if reg becomes blocked, could fallback to `lynx -source`, but then we have to manage the forks ourselves
+                        'puf', '-vvv', '-nc', '-U', 'Yes, keep trying to block those user agents BoM. It''s not like you''re the public service', '-P', tempdir_path,
+                    # Try to get a rain image for every minute in the last hour.
+                    # 1 in every 5 or 6 will work.  For now, just ignore that some fail.
+                    *[then.strftime('http://reg.bom.gov.au/radar/'+prefix+'.T.%Y%m%d%H%M.png')
+                      for i in range(60)
+                      for then in [(now - datetime.timedelta(minutes=i))]
+                      if (then.minute - minute_offset - new_offset) % 5 == 0],  # was 6, should now be 5
+                    # The underlay images (NOTE: hardcode station to MEL (IDR021) for now).
+                    *[f'http://reg.bom.gov.au/products/radar_transparencies/{prefix}.{u}.png'
+                      for u in underlays]], universal_newlines = True, stderr = subprocess.PIPE)
+
+                # for a complete non-match, you'd expect 12/12
+                # failures for 5 minute intervals in an hour.  Set
+                # threshold to require 4 successes?
+                print ("proc.stdout = ", proc.stderr, len(re.findall('not found', proc.stderr)))
+                if len(re.findall('not found', proc.stderr)) < 8:
+                        # successfully downloaded a set of images at offset minute_offset + new_offset
+                        with open(minute_offset_file, 'w') as offsetfile:
+                                offsetfile.write(str(minute_offset+new_offset))
+
+                        break
+
+                new_offset += 1
+
+        # remove all but the last 12 images from each category
         subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
         subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.1.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
         subprocess.check_call(f"ls -tr {tempdir_path}/*.T.????????????.2.png 2>/dev/null | head -n -12 | xargs --no-run-if-empty rm --verbose", shell=True)
@@ -107,10 +131,10 @@ else:
 
 print(f"path1={tempdir1_path},path2={tempdir2_path}")
 if 0 == os.fork():
-    radar(current[0], 4, tempdir1_path)
+    radar(current[0], '/tmp/radar1.offset', tempdir1_path)
     os._exit(0)
 else:
-    radar(current[1], 1, tempdir2_path)
+    radar(current[1], '/tmp/radar2.offset', tempdir2_path)
     os.wait()
 
 subprocess.check_call(['ffmpeg', '-i', tempdir1_path / (current[0]+'.final.gif'), '-i', tempdir2_path / (current[1]+'.final.gif'), '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
