@@ -32,12 +32,17 @@ import sys
 
 underlays = ('background', 'locations', 'range', 'topography')
 
+primaries = ('IDR021', 'IDR023')
+secondaries = ('IDR011', 'IDR013')
+current = primaries
+
 def radar(prefix,minute_offset,tempdir_path):
         now = datetime.datetime.utcnow()  # NOTE: TZ=UTC
         # Truncate to start of hour to kludge over with propagation delays on the bom.gov.au servers
         # This means the data will be up to 1h delayed, so FIXME.
         # now = now.replace(minute=0)
         subprocess.call([
+                # if reg becomes blocked, could fallback to `lynx -source`, but then we have to manage the forks ourselves
                 'puf', '-v', '-nc', '-U', 'Yes, keep trying to block those user agents BoM. It''s not like you''re the public service', '-P', tempdir_path,
             # Try to get a rain image for every minute in the last hour.
             # 1 in every 5 or 6 will work.  For now, just ignore that some fail.
@@ -79,10 +84,18 @@ def radar(prefix,minute_offset,tempdir_path):
                                    *sorted(tempdir_path.glob(prefix+'*.T.????????????.4.png')),
                                    tempdir_path / f'{prefix}.final.gif'])
 
+args=()
+if len(sys.argv) != 1:
+    args=sys.argv[1:] # shift
+    if ( args[0] == "--failover" ):
+        # failover=true
+        current = secondaries
+        args = args[1:] # shift
+
 provided_paths = False
-if len(sys.argv) > 2:
-    tempdir1_path = pathlib.Path(sys.argv.pop(1))
-    tempdir2_path = pathlib.Path(sys.argv.pop(1))
+if len(args) > 1:
+    tempdir1_path = pathlib.Path(args.pop(0))
+    tempdir2_path = pathlib.Path(args.pop(0))
 
     pathlib.Path(tempdir1_path).mkdir(parents=True, exist_ok=True)
     pathlib.Path(tempdir2_path).mkdir(parents=True, exist_ok=True)
@@ -94,18 +107,16 @@ else:
 
 print(f"path1={tempdir1_path},path2={tempdir2_path}")
 if 0 == os.fork():
-    radar('IDR021', 4, tempdir1_path)
+    radar(current[0], 4, tempdir1_path)
     os._exit(0)
 else:
-    radar('IDR023', 1, tempdir2_path)
+    radar(current[1], 1, tempdir2_path)
     os.wait()
 
-subprocess.check_call(['ffmpeg', '-i', tempdir1_path / 'IDR021.final.gif', '-i', tempdir2_path / 'IDR023.final.gif', '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
+subprocess.check_call(['ffmpeg', '-i', tempdir1_path / (current[0]+'.final.gif'), '-i', tempdir2_path / (current[1]+'.final.gif'), '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
 os.rename(tempdir2_path / '.tmp.output.mp4', tempdir2_path / 'output.mp4')
 
-if len(sys.argv) != 1:
-    args=sys.argv[1:]
-else:
+if len(args) == 0:
     args=['mpv', '-loop']
 args+=[tempdir2_path / 'output.mp4']
 print("Argument List:", str(args))

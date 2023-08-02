@@ -58,5 +58,5 @@ period, but you might alias with when its pushed to the website):
 
 ```bash
 > ssh pi crontab -l | grep radar
-* * * * * radar /tmp/radar.1 /tmp/radar.2 mpvctl replace >> /var/log/pidisplay.log 2>&1
+* * * * * ( radar /tmp/radar.1 /tmp/radar.2 mpvctl replace || radar --failover /tmp/radar.1 /tmp/radar.2 mpvctl replace ) >> /var/log/pidisplay.log 2>&1
 ```
