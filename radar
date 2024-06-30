@@ -48,9 +48,7 @@ def radar(prefix,minute_offset_file,tempdir_path):
 
         new_offset=0
         while new_offset < 5:
-                # Truncate to start of hour to kludge over with propagation delays on the bom.gov.au servers
-                # This means the data will be up to 1h delayed, so FIXME.
-                # now = now.replace(minute=0)
+                print (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
                 proc = subprocess.run(args = [
                         # if reg becomes blocked, could fallback to `lynx -source`, but then we have to manage the forks ourselves
                         'puf', '-vvv', '-nc', '-U', 'Yes, keep trying to block those user agents BoM. It''s not like you''re the public service', '-P', tempdir_path,
@@ -67,7 +65,7 @@ def radar(prefix,minute_offset_file,tempdir_path):
                 # for a complete non-match, you'd expect 12/12
                 # failures for 5 minute intervals in an hour.  Set
                 # threshold to require 4 successes?
-                print ("proc.stdout = ", proc.stderr, len(re.findall('not found', proc.stderr)))
+                print ("proc.stderr = ", proc.stderr, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ": \"not found\" len = ", len(re.findall('not found', proc.stderr)))
                 if len(re.findall('not found', proc.stderr)) < 8:
                         # successfully downloaded a set of images at offset minute_offset + new_offset
                         with open(minute_offset_file, 'w') as offsetfile:
