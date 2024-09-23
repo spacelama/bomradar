@@ -30,12 +30,16 @@ import subprocess
 import shutil
 import sys
 import re
+import time, stat
 
 underlays = ('background', 'locations', 'range', 'topography')
 
 primaries = ('IDR021', 'IDR023')
 secondaries = ('IDR011', 'IDR013')
 current = primaries
+
+def age(pathname):
+    return time.time() - os.stat(pathname)[stat.ST_MTIME]
 
 def radar(prefix,minute_offset_file,tempdir_path):
         now = datetime.datetime.utcnow()  # NOTE: TZ=UTC
@@ -93,6 +97,7 @@ def radar(prefix,minute_offset_file,tempdir_path):
                 subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.1.png'), tempdir_path / f'{prefix}.range.png',       overlay_path.with_suffix(f'.2.png')])
                 subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.2.png'), tempdir_path / f'{prefix}.topography.png',  overlay_path.with_suffix(f'.3.png')])
                 subprocess.check_call(['gm', 'composite', overlay_path.with_suffix(f'.3.png'), tempdir_path / f'{prefix}.background.png',  overlay_path.with_suffix(f'.4.png')])
+                print("Regenerated:", overlay_path.with_suffix(f'.4.png'))
                 regenerate = True
 
         # Convert to an animated gif.
@@ -105,6 +110,9 @@ def radar(prefix,minute_offset_file,tempdir_path):
                                    '-loop', '0',    # loop forever
                                    *sorted(tempdir_path.glob(prefix+'*.T.????????????.4.png')),
                                    tempdir_path / f'{prefix}.final.gif'])
+            print("Regenerated:", tempdir_path / f'{prefix}.final.gif')
+        else:
+            print("No need to regenerate",overlay_path.with_suffix(f'.4.png'), "or", tempdir_path / f'{prefix}.final.gif')
 
 args=()
 if len(sys.argv) != 1:
@@ -135,15 +143,23 @@ else:
     radar(current[1], '/tmp/radar2.offset', tempdir2_path)
     os.wait()
 
-subprocess.check_call(['ffmpeg', '-i', tempdir1_path / (current[0]+'.final.gif'), '-i', tempdir2_path / (current[1]+'.final.gif'), '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
-os.rename(tempdir2_path / '.tmp.output.mp4', tempdir2_path / 'output.mp4')
+try:
+    if ((age(tempdir1_path / (current[0]+'.final.gif')) < 1800) and
+        (age(tempdir2_path / (current[1]+'.final.gif')) < 1800)):
+        subprocess.check_call(['ffmpeg', '-i', tempdir1_path / (current[0]+'.final.gif'), '-i', tempdir2_path / (current[1]+'.final.gif'), '-filter_complex', 'hstack', '-y', tempdir2_path / '.tmp.output.mp4'])
+        os.rename(tempdir2_path / '.tmp.output.mp4', tempdir2_path / 'output.mp4')
 
-if len(args) == 0:
-    args=['mpv', '-loop']
-args+=[tempdir2_path / 'output.mp4']
-print("Argument List:", str(args))
-subprocess.check_call(args)
-
-if not provided_paths:
-    shutil.rmtree(tempdir1_path)
-    shutil.rmtree(tempdir2_path)
+        # if the user didn't supply any args, run `mpv -loop $filename`.  If
+        # they did supply extra args, we invoke `<those args> $filename`
+        if len(args) == 0:
+            args=['mpv', '-loop']
+        args+=[tempdir2_path / 'output.mp4']
+        print("Argument List:", str(args))
+        subprocess.check_call(args)
+    else:
+        raise RuntimeError("No output was generated probably because not enough input files")
+except Exception as e:
+    if not provided_paths:
+        shutil.rmtree(tempdir1_path)
+        shutil.rmtree(tempdir2_path)
+    raise
